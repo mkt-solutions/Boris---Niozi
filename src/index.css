@@ -31,7 +31,7 @@ body {
 }
 
 .markdown-body p {
-  @apply mb-4 leading-relaxed;
+  @apply mb-2 leading-tight;
 }
 .markdown-body strong {
   @apply text-brand-gold font-semibold;

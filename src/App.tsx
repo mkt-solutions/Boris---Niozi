@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Send, 
@@ -30,40 +30,99 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'model',
-      content: 'Olá. Sou Boris, estrategista da Niozi. Estou aqui para entender seu cenário atual e como podemos estruturar e orientar o seu negócio para gerar resultado real. Qual o maior desafio que sua empresa enfrenta hoje?'
+      content: 'Olá. Sou Boris, estrategista da Niozi. Qual o maior desafio que seu negócio enfrenta hoje para crescer?'
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isDataSent, setIsDataSent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const nudgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const finalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const sendLeadToBackend = useCallback(() => {
+    if (isDataSent) return;
+
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const phoneRegex = /(\(?\d{2}\)?\s?)(\d{4,5}-?\d{4})/g;
+    
+    const allText = messages.map(m => m.content).join('\n');
+    const emails = allText.match(emailRegex);
+    const phones = allText.match(phoneRegex);
+
+    if ((emails || phones) && messages.length > 3) {
+      const summary = messages
+        .map(m => `${m.role === 'user' ? 'Cliente' : 'Boris'}: ${m.content.replace('[FINALIZADO]', '')}`)
+        .join('\n\n');
+      
+      fetch('/api/send-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emails ? emails[0] : '',
+          whatsapp: phones ? phones[0] : '',
+          summary: summary
+        })
+      }).then(res => {
+        if (res.ok) {
+          console.log("Email sent successfully at the end of conversation.");
+          setIsDataSent(true);
+        }
+      }).catch(err => console.error("Error sending lead:", err));
+    }
+  }, [messages, isDataSent]);
+
+  // Handle markers and inactivity
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    
+    // Trigger 1: AI explicit marker
+    if (lastMessage?.role === 'model' && lastMessage.content.includes('[FINALIZADO]')) {
+      sendLeadToBackend();
+    }
+
+    // Trigger 2: Inactivity logic
+    if (nudgeTimeoutRef.current) clearTimeout(nudgeTimeoutRef.current);
+    if (finalTimeoutRef.current) clearTimeout(finalTimeoutRef.current);
+    
+    if (!isDataSent) {
+      // Stage 1: 3-minute nudge (only if last wasn't already a nudge)
+      const isLastMessageNudge = lastMessage?.role === 'model' && lastMessage.content.includes('ainda está por aqui');
+      
+      if (!isLastMessageNudge) {
+        nudgeTimeoutRef.current = setTimeout(() => {
+          const nameMatch = messages.find(m => m.role === 'user' && m.content.length < 50)?.content || "";
+          const namePart = nameMatch ? `, ${nameMatch.split(' ')[0]}` : "";
+          
+          setMessages(prev => [
+            ...prev, 
+            { role: 'model', content: `Olá${namePart}, ainda está por aqui para continuarmos nossa estratégia?` }
+          ]);
+        }, 180000); // 3 minutes
+      }
+
+      // Stage 2: 5-minute finalization (total time since last user or AI strategic message)
+      // If a nudge was sent, we only wait 2 more minutes to reach the 5-minute target
+      const waitTime = isLastMessageNudge ? 120000 : 300000;
+      
+      finalTimeoutRef.current = setTimeout(() => {
+        sendLeadToBackend();
+      }, waitTime);
+    }
+
+    return () => {
+      if (nudgeTimeoutRef.current) clearTimeout(nudgeTimeoutRef.current);
+      if (finalTimeoutRef.current) clearTimeout(finalTimeoutRef.current);
+    };
+  }, [messages, sendLeadToBackend, isDataSent]);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  // Logic to detect lead data and simulate sending to email
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.role === 'user') {
-      const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-      const phoneRegex = /(\(?\d{2}\)?\s?)(\d{4,5}-?\d{4})/;
-      
-      const hasEmail = emailRegex.test(lastMessage.content);
-      const hasPhone = phoneRegex.test(lastMessage.content);
-
-      if ((hasEmail || hasPhone) && !isDataSent) {
-        console.log("Lead data detected. Sending summary to atendimento@niozi.com.br...");
-        // In a real app, this would be an API call to a backend service
-        // that handles email sending via SendGrid/AWS SES/etc.
-        setIsDataSent(true);
-      }
-    }
-  }, [messages, isDataSent]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,33 +214,33 @@ export default function App() {
         </header>
 
         {/* Message Container */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-10 space-y-8 scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 scroll-smooth">
           <AnimatePresence initial={false}>
             {messages.map((msg, idx) => (
               <motion.div
                 key={idx}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
+                transition={{ duration: 0.3 }}
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <div className={`max-w-[85%] md:max-w-[70%] group ${msg.role === 'user' ? 'order-1' : 'order-2'}`}>
+                <div className={`max-w-[90%] md:max-w-[80%] group ${msg.role === 'user' ? 'order-1' : 'order-2'}`}>
                   {msg.role === 'model' && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] uppercase font-bold tracking-tighter text-brand-gold">Boris</span>
-                      <div className="h-[1px] w-8 bg-brand-gold/20"></div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[9px] uppercase font-bold tracking-tighter text-brand-purple">Boris</span>
+                      <div className="h-[1px] w-4 bg-brand-purple/20"></div>
                     </div>
                   )}
-                  <div className={`p-5 rounded-2xl border ${
+                  <div className={`py-2 px-3 md:py-3 md:px-4 rounded-xl border ${
                     msg.role === 'user' 
                       ? 'bg-brand-purple text-white border-brand-purple font-medium shadow-sm' 
                       : 'bg-slate-50 text-slate-700 border-slate-200 shadow-sm'
                   }`}>
-                    <div className="markdown-body prose prose-slate max-w-none">
+                    <div className="markdown-body prose prose-slate text-sm max-w-none leading-tight">
                       <Markdown components={{
                         a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-brand-purple underline decoration-brand-purple/30 hover:decoration-brand-purple transition-all" />
                       }}>
-                        {msg.content}
+                        {msg.content.replace('[FINALIZADO]', '')}
                       </Markdown>
                     </div>
                   </div>
