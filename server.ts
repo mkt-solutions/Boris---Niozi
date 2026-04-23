@@ -1,5 +1,6 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
+import nodemailer from "nodemailer";
 import path from "path";
 
 async function startServer() {
@@ -8,43 +9,57 @@ async function startServer() {
 
   app.use(express.json());
 
-  // API Route to send lead email via FormSubmit
+  // API Route to send lead email via SMTP
   app.post("/api/send-lead", async (req, res) => {
     const { name, email, whatsapp, summary, tag, transcription } = req.body;
-    console.log(`[Email] Tentando enviar lead para ${email}...`);
     
-    try {
-      const response = await fetch("https://formsubmit.co/ajax/atendimento@niozi.com.br", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify({
-          _subject: `Novo Lead ESTRATÉGICO - Boris IA (${name || "Sem Nome"})`,
-          "Nome do Cliente": name || "Não informado",
-          "E-mail": email || "Não informado",
-          "WhatsApp": whatsapp || "Não informado",
-          "Principais Pontos / Resumo": summary,
-          "Tag": `Lead ${tag}`,
-          "Transcrição Completa": transcription,
-          _template: "table",
-          _captcha: "false"
-        })
-      });
+    // SMTP Credentials from Environment Variables
+    const host = process.env.SMTP_HOST;
+    const port = parseInt(process.env.SMTP_PORT || "465");
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
 
-      const data = await response.json();
-      console.log("[FormSubmit Response]:", data);
-      
-      if (response.ok) {
-        res.status(200).json(data);
-      } else {
-        console.error("[FormSubmit Error]:", data);
-        res.status(400).json({ error: "FormSubmit error", details: data });
-      }
+    if (!host || !user || !pass) {
+      console.error("[SMTP Error] Credenciais ausentes no .env");
+      return res.status(500).json({ error: "Configuração SMTP incompleta." });
+    }
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465, // true for 465, false for other ports
+      auth: { user, pass },
+    });
+
+    const mailOptions = {
+      from: `"Boris IA" <${user}>`,
+      to: "atendimento@niozi.com.br",
+      subject: `Novo Lead ESTRATÉGICO - Boris IA (${name || "Sem Nome"})`,
+      html: `
+        <div style="font-family: sans-serif; color: #333; line-height: 1.6;">
+          <h2 style="color: #6d28d9;">Novo Lead Capturado - Boris Strategist</h2>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Nome do Cliente:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${name || 'Não informado'}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>E-mail:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${email || 'Não informado'}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>WhatsApp:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${whatsapp || 'Não informado'}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Qualificação:</strong></td><td style="padding: 8px; border: 1px solid #ddd;"><strong>Lead ${tag}</strong></td></tr>
+          </table>
+          
+          <h3 style="margin-top: 20px; color: #6d28d9;">Principais Pontos / Resumo:</h3>
+          <div style="background: #f9fafb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">${summary}</div>
+          
+          <h3 style="margin-top: 20px; color: #6d28d9;">Transcrição Completa da Conversa:</h3>
+          <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; font-size: 13px; white-space: pre-wrap;">${transcription}</div>
+        </div>
+      `,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      res.status(200).json({ success: true, message: "Email enviado com sucesso via SMTP" });
     } catch (err) {
-      console.error("[Fatal Email Error]:", err);
-      res.status(500).json({ error: "Falha ao enviar e-mail via FormSubmit." });
+      console.error("[SMTP Fatal Error]:", err);
+      res.status(500).json({ error: "Falha ao enviar e-mail via SMTP.", details: err });
     }
   });
 

@@ -227,51 +227,11 @@ export default function App() {
               />
             </div>
             <div>
-              <h1 className="font-semibold text-sm text-slate-900 focus:underline cursor-help" onClick={() => {
-                if (window.confirm("Deseja enviar um e-mail de teste para ativar o FormSubmit?")) {
-                  fetch('/api/send-lead', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      name: "TESTE",
-                      email: "teste@exemplo.com",
-                      whatsapp: "11999999999",
-                      summary: "Este é um disparo de teste para ativação.",
-                      tag: "QUENTE",
-                      transcription: "Conversa de teste para validar conexão."
-                    })
-                  }).then(r => r.json()).then(d => alert(JSON.stringify(d, null, 2)));
-                }
-              }}>Boris</h1>
+              <h1 className="font-semibold text-sm text-slate-900">Boris</h1>
               <p className="text-[10px] text-brand-purple font-bold uppercase tracking-widest">Niozi Strategist</p>
             </div>
           </div>
         </header>
-
-        {/* Global/Desktop Debug Trigger */}
-        <div className="hidden lg:block absolute bottom-4 right-4 z-50">
-           <button 
-             onClick={() => {
-               if (window.confirm("Deseja enviar um e-mail de teste para ativar o FormSubmit?")) {
-                 fetch('/api/send-lead', {
-                   method: 'POST',
-                   headers: { 'Content-Type': 'application/json' },
-                   body: JSON.stringify({
-                     name: "TESTE-DESKTOP",
-                     email: "teste@exemplo.com",
-                     whatsapp: "11999999999",
-                     summary: "Disparo de teste manual.",
-                     tag: "QUENTE",
-                     transcription: "Teste manual via botão de debug."
-                   })
-                 }).then(r => r.json()).then(d => alert(JSON.stringify(d, null, 2)));
-               }
-             }}
-             className="text-[9px] text-slate-300 hover:text-slate-500 transition-colors uppercase tracking-widest font-bold"
-           >
-             DEBUG EMAIL
-           </button>
-        </div>
 
         {/* Message Container */}
         <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 scroll-smooth">
