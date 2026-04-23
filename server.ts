@@ -10,7 +10,8 @@ async function startServer() {
 
   // API Route to send lead email via FormSubmit
   app.post("/api/send-lead", async (req, res) => {
-    const { name, email, whatsapp, summary } = req.body;
+    const { name, email, whatsapp, summary, tag, transcription } = req.body;
+    console.log(`[Email] Tentando enviar lead para ${email}...`);
     
     try {
       const response = await fetch("https://formsubmit.co/ajax/atendimento@niozi.com.br", {
@@ -20,25 +21,29 @@ async function startServer() {
           "Accept": "application/json"
         },
         body: JSON.stringify({
-          _subject: `Novo Lead - Boris IA (${name || "Sem Nome"})`,
-          Nome: name || "Não informado",
-          Email: email || "Não informado",
-          WhatsApp: whatsapp || "Não informado",
-          Resumo: summary,
+          _subject: `Novo Lead ESTRATÉGICO - Boris IA (${name || "Sem Nome"})`,
+          "Nome do Cliente": name || "Não informado",
+          "E-mail": email || "Não informado",
+          "WhatsApp": whatsapp || "Não informado",
+          "Principais Pontos / Resumo": summary,
+          "Tag": `Lead ${tag}`,
+          "Transcrição Completa": transcription,
           _template: "table",
           _captcha: "false"
         })
       });
 
       const data = await response.json();
+      console.log("[FormSubmit Response]:", data);
       
       if (response.ok) {
         res.status(200).json(data);
       } else {
+        console.error("[FormSubmit Error]:", data);
         res.status(400).json({ error: "FormSubmit error", details: data });
       }
     } catch (err) {
-      console.error("Email Error:", err);
+      console.error("[Fatal Email Error]:", err);
       res.status(500).json({ error: "Falha ao enviar e-mail via FormSubmit." });
     }
   });

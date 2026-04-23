@@ -54,25 +54,44 @@ export default function App() {
     const emails = allText.match(emailRegex);
     const phones = allText.match(phoneRegex);
 
+    const lastMsg = messages[messages.length - 1]?.content || "";
+    const resumerMatch = lastMsg.match(/\[\[RESUMO: (.*?)\]\]/s);
+    const tagMatch = lastMsg.match(/\[\[TAG: (.*?)\]\]/s);
+    
+    const strategicSummary = resumerMatch ? resumerMatch[1] : "Não gerado";
+    const leadTag = tagMatch ? tagMatch[1] : "Não definida";
+    
     if ((emails || phones) && messages.length > 3) {
-      const summary = messages
-        .map(m => `${m.role === 'user' ? 'Cliente' : 'Boris'}: ${m.content.replace('[FINALIZADO]', '')}`)
+      const transcription = messages
+        .map(m => {
+          let content = m.content;
+          content = content.replace(/\[\[RESUMO: .*?\]\]/gs, '');
+          content = content.replace(/\[\[TAG: .*?\]\]/gs, '');
+          content = content.replace(/\[CONV_FINALIZADA\]/g, '');
+          return `${m.role === 'user' ? 'Cliente' : 'Boris'}: ${content.trim()}`;
+        })
         .join('\n\n');
+
+      // Detect Name (usually first user message or short identifying message)
+      const name = messages.find(m => m.role === 'user' && m.content.length < 50)?.content || "Não capturado";
       
       fetch('/api/send-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: emails ? emails[0] : '',
-          whatsapp: phones ? phones[0] : '',
-          summary: summary
+          name: name.split(' ')[0],
+          email: emails ? emails[0] : 'Não informado',
+          whatsapp: phones ? phones[0] : 'Não informado',
+          summary: strategicSummary,
+          tag: leadTag,
+          transcription: transcription
         })
       }).then(res => {
         if (res.ok) {
-          console.log("Email sent successfully at the end of conversation.");
+          console.log("Strategic email sent successfully.");
           setIsDataSent(true);
         }
-      }).catch(err => console.error("Error sending lead:", err));
+      }).catch(err => console.error("Error sending strategic lead:", err));
     }
   }, [messages, isDataSent]);
 
@@ -80,8 +99,8 @@ export default function App() {
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     
-    // Trigger 1: AI explicit marker
-    if (lastMessage?.role === 'model' && lastMessage.content.includes('[FINALIZADO]')) {
+    // Trigger 1: AI explicit marker for finalized conversation
+    if (lastMessage?.role === 'model' && lastMessage.content.includes('[CONV_FINALIZADA]')) {
       sendLeadToBackend();
     }
 
@@ -208,11 +227,51 @@ export default function App() {
               />
             </div>
             <div>
-              <h1 className="font-semibold text-sm text-slate-900">Boris</h1>
+              <h1 className="font-semibold text-sm text-slate-900 focus:underline cursor-help" onClick={() => {
+                if (window.confirm("Deseja enviar um e-mail de teste para ativar o FormSubmit?")) {
+                  fetch('/api/send-lead', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      name: "TESTE",
+                      email: "teste@exemplo.com",
+                      whatsapp: "11999999999",
+                      summary: "Este é um disparo de teste para ativação.",
+                      tag: "QUENTE",
+                      transcription: "Conversa de teste para validar conexão."
+                    })
+                  }).then(r => r.json()).then(d => alert(JSON.stringify(d, null, 2)));
+                }
+              }}>Boris</h1>
               <p className="text-[10px] text-brand-purple font-bold uppercase tracking-widest">Niozi Strategist</p>
             </div>
           </div>
         </header>
+
+        {/* Global/Desktop Debug Trigger */}
+        <div className="hidden lg:block absolute bottom-4 right-4 z-50">
+           <button 
+             onClick={() => {
+               if (window.confirm("Deseja enviar um e-mail de teste para ativar o FormSubmit?")) {
+                 fetch('/api/send-lead', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({
+                     name: "TESTE-DESKTOP",
+                     email: "teste@exemplo.com",
+                     whatsapp: "11999999999",
+                     summary: "Disparo de teste manual.",
+                     tag: "QUENTE",
+                     transcription: "Teste manual via botão de debug."
+                   })
+                 }).then(r => r.json()).then(d => alert(JSON.stringify(d, null, 2)));
+               }
+             }}
+             className="text-[9px] text-slate-300 hover:text-slate-500 transition-colors uppercase tracking-widest font-bold"
+           >
+             DEBUG EMAIL
+           </button>
+        </div>
 
         {/* Message Container */}
         <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 scroll-smooth">
@@ -241,7 +300,10 @@ export default function App() {
                       <Markdown components={{
                         a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-brand-purple underline decoration-brand-purple/30 hover:decoration-brand-purple transition-all" />
                       }}>
-                        {msg.content.replace('[FINALIZADO]', '')}
+                        {msg.content
+                          .replace(/\[\[RESUMO: .*?\]\]/gs, '')
+                          .replace(/\[\[TAG: .*?\]\]/gs, '')
+                          .replace('[CONV_FINALIZADA]', '')}
                       </Markdown>
                     </div>
                   </div>
