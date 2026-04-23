@@ -89,7 +89,9 @@ export default function App() {
     if (nudgeTimeoutRef.current) clearTimeout(nudgeTimeoutRef.current);
     if (finalTimeoutRef.current) clearTimeout(finalTimeoutRef.current);
     
-    if (!isDataSent) {
+    const hasUserInteracted = messages.some(m => m.role === 'user');
+    
+    if (!isDataSent && hasUserInteracted) {
       // Stage 1: 3-minute nudge (only if last wasn't already a nudge)
       const isLastMessageNudge = lastMessage?.role === 'model' && lastMessage.content.includes('ainda está por aqui');
       
@@ -106,7 +108,6 @@ export default function App() {
       }
 
       // Stage 2: 5-minute finalization (total time since last user or AI strategic message)
-      // If a nudge was sent, we only wait 2 more minutes to reach the 5-minute target
       const waitTime = isLastMessageNudge ? 120000 : 300000;
       
       finalTimeoutRef.current = setTimeout(() => {

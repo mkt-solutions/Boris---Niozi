@@ -1,6 +1,5 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import { Resend } from "resend";
 import path from "path";
 
 async function startServer() {
@@ -9,42 +8,38 @@ async function startServer() {
 
   app.use(express.json());
 
-  // API Route to send lead email
+  // API Route to send lead email via FormSubmit
   app.post("/api/send-lead", async (req, res) => {
     const { name, email, whatsapp, summary } = req.body;
     
-    const RESEND_API_KEY = process.env.RESEND_API_KEY;
-    
-    if (!RESEND_API_KEY) {
-      console.warn("RESEND_API_KEY not found. Email not sent.");
-      return res.status(500).json({ error: "Configuração de e-mail ausente." });
-    }
-
-    const resend = new Resend(RESEND_API_KEY);
-
     try {
-      const { data, error } = await resend.emails.send({
-        from: "Boris IA <onboarding@resend.dev>",
-        to: ["atendimento@niozi.com.br"],
-        subject: `Novo Lead Capturado - Boris IA (${name || "Sem Nome"})`,
-        html: `
-          <h3>Novo Resumo de Conversa - Boris Strategist</h3>
-          <p><strong>Nome:</strong> ${name || "Não informado"}</p>
-          <p><strong>E-mail:</strong> ${email || "Não informado"}</p>
-          <p><strong>WhatsApp:</strong> ${whatsapp || "Não informado"}</p>
-          <hr />
-          <p><strong>Resumo da conversa:</strong></p>
-          <div style="white-space: pre-wrap;">${summary}</div>
-        `,
+      const response = await fetch("https://formsubmit.co/ajax/atendimento@niozi.com.br", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          _subject: `Novo Lead - Boris IA (${name || "Sem Nome"})`,
+          Nome: name || "Não informado",
+          Email: email || "Não informado",
+          WhatsApp: whatsapp || "Não informado",
+          Resumo: summary,
+          _template: "table",
+          _captcha: "false"
+        })
       });
 
-      if (error) {
-        return res.status(400).json(error);
+      const data = await response.json();
+      
+      if (response.ok) {
+        res.status(200).json(data);
+      } else {
+        res.status(400).json({ error: "FormSubmit error", details: data });
       }
-
-      res.status(200).json(data);
     } catch (err) {
-      res.status(500).json({ error: "Falha ao enviar e-mail." });
+      console.error("Email Error:", err);
+      res.status(500).json({ error: "Falha ao enviar e-mail via FormSubmit." });
     }
   });
 
