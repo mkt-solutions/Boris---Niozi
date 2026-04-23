@@ -16,9 +16,8 @@ import {
   TrendingUp, 
   Users, 
   ChevronRight, 
-  Sparkles,
   MessageSquare,
-  Bot
+  X
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { chatWithBoris } from './services/geminiService.ts';
@@ -42,6 +41,18 @@ export default function App() {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleClose = () => {
+    if (window.confirm('Deseja realmente encerrar esta conversa?')) {
+      setMessages([
+        {
+          role: 'model',
+          content: 'Olá. Sou Boris, estrategista da Niozi. Estou aqui para entender seu cenário atual e como podemos estruturar e orientar o seu negócio para gerar resultado real. Qual o maior desafio que sua empresa enfrenta hoje?'
+        }
+      ]);
+      setIsDataSent(false);
+    }
   };
 
   useEffect(() => {
@@ -154,7 +165,25 @@ export default function App() {
               <p className="text-[10px] text-brand-purple font-bold uppercase tracking-widest">Niozi Strategist</p>
             </div>
           </div>
+          <button 
+            onClick={handleClose}
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600"
+            title="Encerrar conversa"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </header>
+
+        {/* Global/Desktop Close Button */}
+        <div className="hidden lg:block absolute top-6 right-8 z-10">
+          <button 
+            onClick={handleClose}
+            className="group flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-slate-400 hover:text-red-500 hover:border-red-100 hover:bg-red-50 transition-all shadow-sm"
+          >
+            <span className="text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Encerrar</span>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
         {/* Message Container */}
         <div className="flex-1 overflow-y-auto p-4 md:p-10 space-y-8 scroll-smooth">
