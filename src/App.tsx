@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Send, 
@@ -35,110 +35,11 @@ export default function App() {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isDataSent, setIsDataSent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const nudgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const finalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-
-  const sendLeadToBackend = useCallback(() => {
-    if (isDataSent) return;
-
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-    const phoneRegex = /(\(?\d{2}\)?\s?)(\d{4,5}-?\d{4})/g;
-    
-    const allText = messages.map(m => m.content).join('\n');
-    const emails = allText.match(emailRegex);
-    const phones = allText.match(phoneRegex);
-
-    const lastMsg = messages[messages.length - 1]?.content || "";
-    const resumerMatch = lastMsg.match(/\[\[RESUMO: (.*?)\]\]/s);
-    const tagMatch = lastMsg.match(/\[\[TAG: (.*?)\]\]/s);
-    
-    const strategicSummary = resumerMatch ? resumerMatch[1] : "Não gerado";
-    const leadTag = tagMatch ? tagMatch[1] : "Não definida";
-    
-    if ((emails || phones) && messages.length > 3) {
-      const transcription = messages
-        .map(m => {
-          let content = m.content;
-          content = content.replace(/\[\[RESUMO: .*?\]\]/gs, '');
-          content = content.replace(/\[\[TAG: .*?\]\]/gs, '');
-          content = content.replace(/\[CONV_FINALIZADA\]/g, '');
-          return `${m.role === 'user' ? 'Cliente' : 'Boris'}: ${content.trim()}`;
-        })
-        .join('\n\n');
-
-      // Detect Name (usually first user message or short identifying message)
-      const name = messages.find(m => m.role === 'user' && m.content.length < 50)?.content || "Não capturado";
-      
-      fetch('/api/send-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.split(' ')[0],
-          email: emails ? emails[0] : 'Não informado',
-          whatsapp: phones ? phones[0] : 'Não informado',
-          summary: strategicSummary,
-          tag: leadTag,
-          transcription: transcription
-        })
-      }).then(res => {
-        if (res.ok) {
-          console.log("Strategic email sent successfully.");
-          setIsDataSent(true);
-        }
-      }).catch(err => console.error("Error sending strategic lead:", err));
-    }
-  }, [messages, isDataSent]);
-
-  // Handle markers and inactivity
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    
-    // Trigger 1: AI explicit marker for finalized conversation
-    if (lastMessage?.role === 'model' && lastMessage.content.includes('[CONV_FINALIZADA]')) {
-      sendLeadToBackend();
-    }
-
-    // Trigger 2: Inactivity logic
-    if (nudgeTimeoutRef.current) clearTimeout(nudgeTimeoutRef.current);
-    if (finalTimeoutRef.current) clearTimeout(finalTimeoutRef.current);
-    
-    const hasUserInteracted = messages.some(m => m.role === 'user');
-    
-    if (!isDataSent && hasUserInteracted) {
-      // Stage 1: 3-minute nudge (only if last wasn't already a nudge)
-      const isLastMessageNudge = lastMessage?.role === 'model' && lastMessage.content.includes('ainda está por aqui');
-      
-      if (!isLastMessageNudge) {
-        nudgeTimeoutRef.current = setTimeout(() => {
-          const nameMatch = messages.find(m => m.role === 'user' && m.content.length < 50)?.content || "";
-          const namePart = nameMatch ? `, ${nameMatch.split(' ')[0]}` : "";
-          
-          setMessages(prev => [
-            ...prev, 
-            { role: 'model', content: `Olá${namePart}, ainda está por aqui para continuarmos nossa estratégia?` }
-          ]);
-        }, 180000); // 3 minutes
-      }
-
-      // Stage 2: 5-minute finalization (total time since last user or AI strategic message)
-      const waitTime = isLastMessageNudge ? 120000 : 300000;
-      
-      finalTimeoutRef.current = setTimeout(() => {
-        sendLeadToBackend();
-      }, waitTime);
-    }
-
-    return () => {
-      if (nudgeTimeoutRef.current) clearTimeout(nudgeTimeoutRef.current);
-      if (finalTimeoutRef.current) clearTimeout(finalTimeoutRef.current);
-    };
-  }, [messages, sendLeadToBackend, isDataSent]);
 
   useEffect(() => {
     scrollToBottom();
@@ -260,10 +161,7 @@ export default function App() {
                       <Markdown components={{
                         a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-brand-purple underline decoration-brand-purple/30 hover:decoration-brand-purple transition-all" />
                       }}>
-                        {msg.content
-                          .replace(/\[\[RESUMO: .*?\]\]/gs, '')
-                          .replace(/\[\[TAG: .*?\]\]/gs, '')
-                          .replace('[CONV_FINALIZADA]', '')}
+                        {msg.content}
                       </Markdown>
                     </div>
                   </div>
